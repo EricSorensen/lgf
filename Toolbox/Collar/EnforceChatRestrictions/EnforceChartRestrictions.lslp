@@ -1,12 +1,12 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //
-//  Lady Green Forensic Component     : TITLER
+//  Lady Green Forensic Component     : ECR
 //
 //  Signature                         : LGF/TBOX/COLLAR/ECR
-//  LGF Version protocol             : 1.0.0.0
+//  LGF Version protocol              : 1.0.0.0
 //  Component version                 : 0.1
-//  release date                     : November 2015
+//  release date                      : November 2015
 //
 //  Description : This component enforces the chat restrictions of an OpenCollar v3.9
 //                  It sets the @permissive=n RLV function and add exceptions found in 
@@ -27,9 +27,11 @@ string  ncConfigurationName ="EcrConfig"; // name of the notecard found in the c
                                           // and containing the script configuration
 string buffer ="";
 string bufferName ="";
+string groupName ="";
 integer notecardLine; // string containing on line of the configuration notecard
 key notecardQueryId;
-key bufferKey;
+key groupNameRequestId;
+
 init() {
     
     // Check the notecard exists, and has been saved
@@ -68,7 +70,12 @@ processConfigLine(key query_id, string data) {
 
                 //we add the im exceptions
                 buffer = llToLower(llStringTrim(data, STRING_TRIM));
-                llOwnerSay( "ECR : im exceptions set for : " + buffer);
+                llOwnerSay("@startim:"+buffer+"=add");
+                llOwnerSay("@sendim:"+buffer+"=add");
+                
+                // request the name of the root prim's group
+                groupNameRequestId = llHTTPRequest("http://world.secondlife.com/group/" + buffer, [], "");
+                //llOwnerSay( "ECR : im exceptions set for : " + buffer);
             }
             ++notecardLine;
             notecardQueryId = llGetNotecardLine(ncConfigurationName, notecardLine);
@@ -89,5 +96,15 @@ default {
     dataserver(key query_id, string data) {
         
         processConfigLine(query_id, data);
+    }
+    
+    http_response(key request_id, integer status, list metadata, string body)
+    {
+        //if (request_id != groupNameRequestId)
+        //    return;
+ 
+        list args = llParseString2List(body, ["title"], []);
+        groupName = llList2String(llParseString2List(llList2String(args, 1), [">", "<", "/"], []), 0);
+        llOwnerSay( "ECR : im exceptions set for : " + groupName);
     }
 }
