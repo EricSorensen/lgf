@@ -5,7 +5,7 @@
 //
 //  Signature                         : LGF/TBOX/COLLAR/ECR
 //  LGF Version protocol              : 1.0.0.0
-//  Component version                 : 0.1
+//  Component version                 : 0.11
 //  release date                      : November 2015
 //
 //  Description : This component enforces the chat restrictions of an OpenCollar v3.9
@@ -31,6 +31,7 @@ string groupName ="";
 integer notecardLine; // string containing on line of the configuration notecard
 key notecardQueryId;
 key groupNameRequestId;
+key avatarNameRequestId;
 
 init() {
     
@@ -73,13 +74,15 @@ processConfigLine(key query_id, string data) {
                 llOwnerSay("@startim:"+buffer+"=add");
                 llOwnerSay("@sendim:"+buffer+"=add");
                 
-                // request the name of the root prim's group
                 groupNameRequestId = llHTTPRequest("http://world.secondlife.com/group/" + buffer, [], "");
-                //llOwnerSay( "ECR : im exceptions set for : " + buffer);
+                avatarNameRequestId = llRequestAgentData( (key)buffer, DATA_NAME); 
+                llSleep(1.0);
             }
             ++notecardLine;
             notecardQueryId = llGetNotecardLine(ncConfigurationName, notecardLine);
         }
+    } else {
+        llOwnerSay( "ECR : im exceptions set for avatar : " + data);   
     }
 }
 
@@ -100,11 +103,9 @@ default {
     
     http_response(key request_id, integer status, list metadata, string body)
     {
-        //if (request_id != groupNameRequestId)
-        //    return;
- 
         list args = llParseString2List(body, ["title"], []);
         groupName = llList2String(llParseString2List(llList2String(args, 1), [">", "<", "/"], []), 0);
-        llOwnerSay( "ECR : im exceptions set for : " + groupName);
+        llOwnerSay( "ECR : im exceptions set for group : " + groupName);
     }
+    
 }
