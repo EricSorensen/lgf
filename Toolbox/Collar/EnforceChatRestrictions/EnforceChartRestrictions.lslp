@@ -73,6 +73,7 @@ processConfigLine(key query_id, string data) {
                 buffer = llToLower(llStringTrim(data, STRING_TRIM));
                 llOwnerSay("@startim:"+buffer+"=add");
                 llOwnerSay("@sendim:"+buffer+"=add");
+                llOwnerSay("@recvim:"+buffer+"=add");
                 
                 groupNameRequestId = llHTTPRequest("http://world.secondlife.com/group/" + buffer, [], "");
                 avatarNameRequestId = llRequestAgentData( (key)buffer, DATA_NAME); 
