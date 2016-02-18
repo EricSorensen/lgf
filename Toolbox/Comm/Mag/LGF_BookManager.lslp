@@ -5,7 +5,7 @@
 //
 //  Signature                         : LGF/TBOX/COMM/MAG
 //  LGF Version protocol              : None
-//  Component version                 : 0.10
+//  Component version                 : 0.11
 //  release date                      : February 2016
 //
 //  Description : This script is a very simple script to animate a magazine worn as a Hud
