@@ -5,7 +5,7 @@
 //
 //  Signature                         : LGF/TBOX/COMM/MAG
 //  LGF Version protocol              : None
-//  Component version                 : 0.11
+//  Component version                 : 0.12
 //  release date                      : February 2016
 //
 //  Description : This script is a very simple script to animate a magazine worn as a Hud
@@ -18,6 +18,12 @@
 //
 //
 //  documentation : http://lgfsite.wordpress.com
+//
+//  copyright © Lady Green Forensic 2016
+//
+//  This script is free software: you can redistribute it and/or modify     
+//  it under the terms of the creative commons Attribution- ShareAlike 4.0 
+//  International licence. (http://creativecommons.org/licenses/by-sa/4.0/legalcode)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
  
 integer     count = 0;
