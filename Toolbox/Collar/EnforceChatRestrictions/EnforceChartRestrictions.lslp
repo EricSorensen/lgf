@@ -5,8 +5,8 @@
 //
 //  Signature                         : LGF/TBOX/COLLAR/ECR
 //  LGF Version protocol              : 1.0.0.0
-//  Component version                 : 0.12
-//  release date                      : 2016 January
+//  Component version                 : 0.11
+//  release date                      : November 2015
 //
 //  Description : This component enforces the chat restrictions of an OpenCollar v3.9
 //                  It sets the @permissive=n RLV function and add exceptions found in 
@@ -15,9 +15,9 @@
 //
 //  State description : Defaut is the only state used 
 //
-//  Messages sent by ECR : None
+//  Messages sent by ECR (Please refer to LGF msg directory)
 //
-//  Message managed by ECR : None
+//  Message managed by Titler (Please refer to LGF msg directory)
 //
 //
 //  documentation : http://lgfsite.wordpress.com
@@ -33,11 +33,9 @@ key notecardQueryId;
 key groupNameRequestId;
 key avatarNameRequestId;
 list g_dataOnlineRequest;// LGF update
-list g_dataOnlineRequestGroup;// LGF update
 
 init() {
     g_dataOnlineRequest = [];
-    g_dataOnlineRequestGroup=[];
     
     // Check the notecard exists, and has been saved
     if (llGetInventoryKey(ncConfigurationName) == NULL_KEY) {
@@ -82,14 +80,14 @@ processConfigLine(key query_id, string data) {
                 groupNameRequestId = llHTTPRequest("http://world.secondlife.com/group/" + buffer, [], "");
                 avatarNameRequestId = llRequestAgentData( (key)buffer, DATA_NAME); 
                 g_dataOnlineRequest += (string)avatarNameRequestId;
-                g_dataOnlineRequestGroup += (string)groupNameRequestId;
+                llSleep(1.0);
             }
             ++notecardLine;
             notecardQueryId = llGetNotecardLine(ncConfigurationName, notecardLine);
         }
     } else {
-    	 integer iStop = llGetListLength(g_dataOnlineRequest);
-    	 key avatarNameRequestId = NULL_KEY ;
+         integer iStop = llGetListLength(g_dataOnlineRequest);
+         key avatarNameRequestId = NULL_KEY ;
          integer n;
          for (n = 0; n < iStop; n += 1) { 
              if (query_id ==  llList2Key(g_dataOnlineRequest,n)) {
@@ -122,24 +120,9 @@ default {
     
     http_response(key request_id, integer status, list metadata, string body)
     {
-    	integer iStop = llGetListLength(g_dataOnlineRequestGroup);
-    	
-    	key groupNameRequestId = NULL_KEY ;
-         integer n;
-         for (n = 0; n < iStop; n += 1) { 
-             if (request_id ==  llList2Key(g_dataOnlineRequestGroup,n)) {
-		        list args = llParseString2List(body, ["title"], []);
-		        groupName = llList2String(llParseString2List(llList2String(args, 1), [">", "<", "/"], []), 0);
-		        llOwnerSay( "ECR : im exceptions set for group : " + groupName);
-                 
-                // we remove the request from the list of request
-                g_dataOnlineRequestGroup = llDeleteSubList(g_dataOnlineRequestGroup, n, n);
-                jump break;
-             }
-             
-         }
-         @break;
-    	
+        list args = llParseString2List(body, ["title"], []);
+        groupName = llList2String(llParseString2List(llList2String(args, 1), [">", "<", "/"], []), 0);
+        llOwnerSay( "ECR : im exceptions set for group : " + groupName);
     }
     
 }
