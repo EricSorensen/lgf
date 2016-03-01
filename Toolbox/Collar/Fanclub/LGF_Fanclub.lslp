@@ -5,7 +5,7 @@
 //
 //  Signature                         : LGF/APPS/COLLAR/FANCLUB
 //  LGF Version protocol              : 1.0.0.0
-//  Component version                 : 0.10
+//  Component version                 : 0.11
 //  release date                      : February 2016
 //
 //  Description : This component is an OC Apps. It allows the owner to receive a report
@@ -29,7 +29,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-string gVersion = "0.10"; // version of the component
+string gVersion = "0.11"; // version of the component
 string gsParentMenu = "Apps"; // Root menu fot this apps
 string gsFeatureName = "Fanclub"; // Name of the menu of this apps
 string gsScript= "fanclub_";     // used for parameters save
@@ -79,7 +79,7 @@ string gReport;
 
 integer LM_SEND_EMAIL = 3500; // message to send an email instead of an im
 
-//Date conversion to string
+//Date conversion to string 
 integer DAYS_PER_YEAR        = 365;           // Non leap year
 integer SECONDS_PER_YEAR     = 31536000;      // Non leap year
 integer SECONDS_PER_DAY      = 86400;
@@ -279,7 +279,7 @@ ReportAPresenceIfNecessary(key agent, list dates) {
         
         string reportLine = DateString(Unix2DateTime(startDate))  + " " + TimeString(Unix2DateTime(startDate)) + " to " 
                             + DateString(Unix2DateTime(endDate))+ " " + TimeString(Unix2DateTime(endDate)) ;
-        reportLine = reportLine + " " + agentName + " at " + location + "\n";
+        reportLine = reportLine + " " + agentName + location + "\n";
         
         gReport = gReport + reportLine;
     }
@@ -362,6 +362,7 @@ storeScan() {
     
 }
 
+// send an immediate im to owners if an intruder is detected. Just one im.
 handleBlacklist() {
     //debug ("entering handleBlacklist");
     
@@ -373,11 +374,13 @@ handleBlacklist() {
     
     for (i=0; i<size; i=i+1) {
         key lAvPlot = llList2Key(gTempPlots, i);
-        indexBlackList = llListFindList(gBlackList, [lAvPlot]);
+        indexBlackList = llListFindList(gBlackList, [lAvPlot]);        
         
         if (indexBlackList >= 0) {
             // Avi is in the blacklist. So we send an im to owners
             //send the message to all owners : im 
+            //TODO : deal with gPlots. If starttime == endtime then send an im
+            
             integer iStop = llGetListLength(gOwners);
             integer n = 0;
             string lMessageIntruder = lMessage + llKey2Name(lAvPlot);
@@ -396,11 +399,17 @@ senReportIfNecessary() {
     
     integer currentTime = llGetUnixTime();
 
+    debug ("currentTime = " + (string)currentTime + " - gLastReportDate = " + (string)gLastReportDate);
     if ((currentTime - gLastReportDate) >= K_DELAY_BETWEEN_TO_REPORT) {
-        sendReport();        
+        debug ("A report has to be sent");
+        sendReport();   
+        gLastReportDate =   currentTime;   
     } 
 }
 
+cleanScanCycle() {
+    gTempPlots = [];
+}
 
 managePlots() {
     //first, we clean the list of non-detected plots
@@ -411,9 +420,13 @@ managePlots() {
     
     //manage blacklist
     handleBlacklist();
-    
+        
     //now we have to check if we must send a report
     senReportIfNecessary();
+    
+    // clean scan cycle
+    cleanScanCycle();
+    
     
     //debug ("dump of gTempPlots : " + (string) gTempPlots);
     displayPlots();
@@ -428,7 +441,7 @@ string getLocation() {
     string sRegionName=llGetRegionName();
     list details = llGetParcelDetails(llGetPos(), [PARCEL_DETAILS_NAME]);
     string sParcelName = llList2String(details ,0);
-    lLocation += "  at "  + sParcelName + " http://maps.secondlife.com/secondlife/"+llEscapeURL(sRegionName)+"/"+(string)llFloor(vPos.x)+"/"+(string)llFloor (vPos.y)+"/"+(string)llFloor(vPos.z);
+    lLocation += " at "  + sParcelName + " http://maps.secondlife.com/secondlife/"+llEscapeURL(sRegionName)+"/"+(string)llFloor(vPos.x)+"/"+(string)llFloor (vPos.y)+"/"+(string)llFloor(vPos.z);
 
     return lLocation;
 
@@ -449,7 +462,8 @@ sendReport() {
     for (n=0; n<iStop; n += 2) {
         key lKAv = llList2Key(gOwners,n);
         // We send an email
-        llMessageLinked(LINK_ALL_OTHERS, LM_SEND_EMAIL,(string)lKAv + "|"+ lMessage,NULL_KEY);
+        llMessageLinked(LINK_SET, LM_SEND_EMAIL,(string)lKAv + "|"+ lMessage,NULL_KEY);
+        debug ("Report sent to " + (string)lKAv);
     }
     
 }
@@ -523,7 +537,7 @@ default {
         gPlotsName=[];
         gLastPlotScan = 0;
         gReport = "";
-        gLastReportDate = llGetUnixTime();
+        gLastReportDate = llGetUnixTime() - K_DELAY_BETWEEN_TO_REPORT -1;
         gWhiteList = [];
         gBlackList =[];
         
@@ -645,6 +659,17 @@ default {
             ++i;
         }
         managePlots();       
+    }
+    
+    no_sensor() {
+        // Even if we did not detect a plot, maybe we must
+        // send the report
+        
+        //now we have to check if we must send a report
+        senReportIfNecessary();
+    
+        // clean scan cycle
+        cleanScanCycle();
     }
     
 
