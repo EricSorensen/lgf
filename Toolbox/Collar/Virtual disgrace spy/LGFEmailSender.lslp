@@ -18,6 +18,13 @@
 //
 //
 //  documentation : http://lgfsite.wordpress.com
+//
+//  copyright © Lady Green Forensic 2016
+//
+//  This script is free software: you can redistribute it and/or modify     
+//  it under the terms of the creative commons Attribution- ShareAlike 4.0 
+//  International licence. (http://creativecommons.org/licenses/by-sa/4.0/legalcode)
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 integer LM_SEND_EMAIL = 3500;
