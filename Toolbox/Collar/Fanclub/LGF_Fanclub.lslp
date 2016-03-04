@@ -5,7 +5,7 @@
 //
 //  Signature                         : LGF/APPS/COLLAR/FANCLUB
 //  LGF Version protocol              : 1.0.0.0
-//  Component version                 : 0.11
+//  Component version                 : 0.12
 //  release date                      : February 2016
 //
 //  Description : This component is an OC Apps. It allows the owner to receive a report
@@ -29,7 +29,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-string gVersion = "0.11"; // version of the component
+string gVersion = "0.12"; // version of the component
 string gsParentMenu = "Apps"; // Root menu fot this apps
 string gsFeatureName = "Fanclub"; // Name of the menu of this apps
 string gsScript= "fanclub_";     // used for parameters save
@@ -38,10 +38,20 @@ integer gDebug = 1;
 
 float K_TIMER_DELAY = 60.0; // 1 min between two scan of people near the sub
 
-string MENU_CHOICE_ACTIVATE = "Activate";
-string MENU_CHOICE_DEACTIVATE = "Deactivate";
-string MENU_CHOICE_DEBUG_OFF = "Debug OFF";
-string MENU_CHOICE_DEBUG_ON = "Debug ON";
+string MENU_CHOICE_ACTIVATE     = "Activate";
+string MENU_CHOICE_DEACTIVATE     = "Deactivate";
+string MENU_CHOICE_DEBUG_OFF     = "Debug OFF";
+string MENU_CHOICE_DEBUG_ON     = "Debug ON";
+string MENU_CHOICE_WHITELIST    = "White list";
+string MENU_CHOICE_BLACKLIST    = "Black list";
+string MAIN_MENU_WHITELIST        = "fanclub_WL_Main";
+string MAIN_MENU_BLACKLIST        = "fanclub_BL_Main";
+string MENU_CHOICE_BL_LIST        = "Display list";
+string MENU_CHOICE_BL_ADD        = "Add";
+string MENU_CHOICE_BL_REMOVE    = "Remove";
+string MENU_CHOICE_WL_LIST        = "Display list";
+string MENU_CHOICE_WL_ADD        = "Add";
+string MENU_CHOICE_WL_REMOVE    = "Remove";
 
 
 // OC Collar events
@@ -58,13 +68,26 @@ string UPMENU = "BACK";
 // Global script variables
 list gOwners;        // list of owners
 key gkDialogID;    //menu handle
+key gkDialogIDWLMain;
+key gkDialogIDBLMain;
+key gkDialogIDWLRemove;
+key gkDialogIDBLRemove;
+key g_kTBoxIdAddBL; // menu handle to add a user in the Black list
+key g_kTBoxIdAddWL; // menu handle to add a user in the White list
+key gOwnerNameMgtBlack;    // handle to retrieve user name
+key gOwnerNameMgtWhite;    // handle to retrieve user name
+key gOwnerNameMgtBlackAviKey;    // handle to store the Avi uid to retrieve user name for black list mgt
+key gOwnerNameMgtWhiteAviKey;    // handle to store the Avi uid retrieve user name for white list mgt
+key gkAvWhite;
+key gkAvBlack;
+
 string gWearerName;
 
 //scan management
 float K_SCAN_LENGTH = 5.0;
 list gPlots;
 list gPlotsName;
-list gTempPlots;
+list gTempPlots;    
 integer  gLastPlotScan=0;
 
 //black and white list management
@@ -230,7 +253,6 @@ integer DateTime2Unix(integer year, integer month, integer day, integer hour, in
 //////////////////////////////////////////////
 
 
-
 // log function
 debug (string pLog) {
     if (gDebug == 1) {
@@ -368,7 +390,6 @@ handleBlacklist() {
     
     string lMessage = "Alert! Alert! Fanclub detected an intruder near your toy : ";
     integer i = 0;
-    integer index=-1;
     integer size = llGetListLength(gTempPlots);
     integer indexBlackList = 0;
     
@@ -380,15 +401,29 @@ handleBlacklist() {
             // Avi is in the blacklist. So we send an im to owners
             //send the message to all owners : im 
             //TODO : deal with gPlots. If starttime == endtime then send an im
+            integer index= llListFindList (gPlots, [lAvPlot]);
             
-            integer iStop = llGetListLength(gOwners);
-            integer n = 0;
-            string lMessageIntruder = lMessage + llKey2Name(lAvPlot);
-            
-            for (n=0; n<iStop; n += 2) {
-                key lKAv = llList2Key(gOwners,n);
-                // We send an im
-                llInstantMessage(lKAv, lMessageIntruder);
+            //here index shoud be >= 0
+            // we check if startDate == endDate because we want to notify the owners
+            // once and only once
+            if (index >= 0) {
+                integer startDate = llList2Integer (gPlots, index+1);
+                integer endDate = llList2Integer (gPlots, index+2);
+                
+                if (startDate == endDate) {
+                    // startDate == endDate. So it's means that we never
+                    // notified the owners. We do it.
+                    
+                    integer iStop = llGetListLength(gOwners);
+                    integer n = 0;
+                    string lMessageIntruder = lMessage + llKey2Name(lAvPlot);
+                    
+                    for (n=0; n<iStop; n += 2) {
+                        key lKAv = llList2Key(gOwners,n);
+                        // We send an im
+                        llInstantMessage(lKAv, lMessageIntruder);
+                    }
+                }
             }
         }
     }    
@@ -403,7 +438,8 @@ senReportIfNecessary() {
     if ((currentTime - gLastReportDate) >= K_DELAY_BETWEEN_TO_REPORT) {
         debug ("A report has to be sent");
         sendReport();   
-        gLastReportDate =   currentTime;   
+        gLastReportDate =   currentTime; 
+        gReport = "";  
     } 
 }
 
@@ -468,6 +504,23 @@ sendReport() {
     
 }
 
+string getDelayBeforeLastReport () {
+
+    // compute the delay
+    integer delay = K_DELAY_BETWEEN_TO_REPORT - ( llGetUnixTime() - gLastReportDate);    
+    
+    debug ("getDelayBeforeLastReport : delay = " + (string) delay);
+    debug ("getDelayBeforeLastReport : gLastReportDate = " + (string) gLastReportDate);
+    
+    integer hour     = delay/3600;
+    integer minutes = (delay % 3600) / 60;
+    integer seconds = (delay % 3600) % 60;
+    
+    return (string)hour +"h " + (string)minutes + "min " + (string) seconds + "s";
+
+}
+
+
 //this function activate the fanclub app
 ActivateReport() {
     gActive = 1;
@@ -482,6 +535,53 @@ DeactivateReport() {
     llMessageLinked(LINK_SET, LM_SETTING_SAVE, gsScript+"active="+(string)gActive, "");
     gReport="";
     llSetTimerEvent(0);
+}
+
+notify(key kID, string sMsg, integer iAlsoNotifyWearer)
+{
+    if((integer)llStringLength(sMsg) > 1023) {  //Line too long, gotta chop this up!
+        integer i;
+        integer x = 0;
+        for(i = 1023; x <= i; --i) {
+            if(llGetSubString(sMsg, i, i) == "\n") { //got a breaking point
+                notify(kID, llGetSubString(sMsg, 0, i), iAlsoNotifyWearer);
+                notify(kID, llGetSubString(sMsg, i, -1), iAlsoNotifyWearer);
+                return;
+            }
+        }
+    }
+    if (kID == llGetOwner()) llOwnerSay(sMsg);
+    else {
+        if (llGetAgentSize(kID)) llRegionSayTo(kID,0,sMsg);
+        else llInstantMessage(kID, sMsg);
+        if (iAlsoNotifyWearer) llOwnerSay(sMsg);
+    }
+}
+
+addAviSpecialList(key kAv, string sMessage, integer pListTypeWhite) {
+    
+    if (pListTypeWhite == TRUE) {
+        gOwnerNameMgtWhite = llRequestUsername((key)sMessage);
+        gOwnerNameMgtWhiteAviKey = (key)sMessage;
+        gkAvWhite= kAv;
+    } else {
+        gOwnerNameMgtBlack = llRequestUsername((key)sMessage);
+        gOwnerNameMgtBlackAviKey = (key)sMessage;
+        gkAvBlack = kAv;
+    }
+}
+
+// This function displays the content of the White or Black list
+displayContentList (key kID, list pList, string pListType) {
+    integer i = 0;
+    integer size = llGetListLength(pList);
+    string sMessage = pListType + " content :\n";
+    for (i=0; i<size ; i=i+2) {
+        sMessage += llList2String(pList, i+1) + "\n";
+    }
+    
+    notify(kID, sMessage, FALSE);
+
 }
 
 
@@ -507,7 +607,7 @@ integer UserCommand(integer iAuth, string sStr, key kAv){
         if (gActive == 0) {
             if (iAuth == COMMAND_OWNER) {
                 lMenuItems += [MENU_CHOICE_ACTIVATE];  
-            }
+            } 
             sPrompt += "\nFanclub report : Deactivated";   
         } else {
             if (iAuth == COMMAND_OWNER) {
@@ -522,9 +622,108 @@ integer UserCommand(integer iAuth, string sStr, key kAv){
             lMenuItems += [MENU_CHOICE_DEBUG_OFF]; 
             sPrompt += "\nDebug Mode : Activated";  
         }
+
+        //if (iAuth == COMMAND_OWNER) {
+            lMenuItems += [MENU_CHOICE_WHITELIST];  
+            lMenuItems += [MENU_CHOICE_BLACKLIST];  
+        //}
+        
+        
         sPrompt+= "\n\nhttp://lgfsite.wordpress.com";
+        sPrompt+= "\n\n Next report in " + getDelayBeforeLastReport();
+        
         gkDialogID = Dialog(kAv, sPrompt, lMenuItems, [UPMENU],0, iAuth);
+    } else if (llToLower(sStr) == llToLower(MAIN_MENU_WHITELIST)) {
+        list lMenuItems = [];
+        string sPrompt;
+        sPrompt = "\nFanclub app version : " + gVersion  + 
+                  "\nWhite list functions" +
+                  "\n\nThe White list allow you to specify a user that will never appear in the report." +
+                  "\nPlease choose an option to manage the White list" ;   
+        
+        //if (iAuth == COMMAND_OWNER) {
+                lMenuItems += [MENU_CHOICE_WL_LIST] + [MENU_CHOICE_WL_ADD] + [MENU_CHOICE_WL_REMOVE];  
+        //}
+        
+        sPrompt+= "\n\nhttp://lgfsite.wordpress.com";
+        gkDialogIDWLMain = Dialog(kAv, sPrompt, lMenuItems, [UPMENU],0, iAuth);
+    } else if (llToLower(sStr) == llToLower(MAIN_MENU_BLACKLIST)) {
+        list lMenuItems = [];
+        string sPrompt;
+        sPrompt = "\nFanclub app version : " + gVersion  + 
+                  "\nBlack list functions" +
+                  "\n\nThe Black list allow the owner to be notified when a specific person is detected near the wearer." +
+                  "\nPlease choose an option to manage the  Black list" ;   
+
+       // if (iAuth == COMMAND_OWNER) {
+                lMenuItems += [MENU_CHOICE_BL_LIST] + [MENU_CHOICE_BL_ADD] + [MENU_CHOICE_BL_REMOVE];  
+        //}
+        
+        sPrompt+= "\n\nhttp://lgfsite.wordpress.com\n";
+        gkDialogIDBLMain = Dialog(kAv, sPrompt, lMenuItems, [UPMENU],0, iAuth);
+    } else if (llToLower(sStr) == llToLower(MENU_CHOICE_WL_ADD)) {
+        list lMenuItems = [];
+        string sPrompt;
+        sPrompt = "\nFanclub app version : " + gVersion  + 
+                  "\n\nSpecify the UID of an avatar to add in the White list.";
+     
+        // Allo the user to add a UUID in the whitelist
+        g_kTBoxIdAddWL = Dialog(kAv,sPrompt, [], [], 0, iAuth);
+ 
+    } else if (llToLower(sStr) == llToLower(MENU_CHOICE_BL_ADD)) {
+        list lMenuItems = [];
+        string sPrompt;
+        sPrompt = "\nFanclub app version : " + gVersion  + 
+                  "\nBlack list function - add" +
+                  "\n\nSpecify the UID of an avatar to add in the Black list" +
+                  "\nThis UID can be found in the avatar's profile." ;   
+        
+        sPrompt+= "\n\nhttp://lgfsite.wordpress.com\n";
+     
+        // Allow the user to add a UUID in the whitelist
+        g_kTBoxIdAddBL = Dialog(kAv,sPrompt, [], [], 0, iAuth);
+ 
+    }else if (llToLower(sStr) == llToLower(MENU_CHOICE_WL_REMOVE)) {
+        list lMenuItems = [];
+        string sPrompt;
+        sPrompt = "\nFanclub app version : " + gVersion  + 
+                  "\nWhite list function - remove" +
+                  "\n\nSelect the user you want to remove from the White list";   
+        
+        sPrompt+= "\n\nhttp://lgfsite.wordpress.com\n";
+
+        integer iStop= llGetListLength(gWhiteList);    
+        integer i =0;
+        
+        for (i=0; i<iStop; i=i+2) {
+            lMenuItems += [llList2String(gWhiteList, i+1)];
+        } 
+             
+        // Allow the user to add a UUID in the whitelist
+        gkDialogIDWLRemove = Dialog(kAv, sPrompt, lMenuItems, [UPMENU],0, iAuth);
+ 
+    } else if (llToLower(sStr) == llToLower(MENU_CHOICE_BL_REMOVE)) {
+        list lMenuItems = [];
+        string sPrompt;
+        sPrompt = "\nFanclub app version : " + gVersion  + 
+                  "\nWhite list function - remove" +
+                  "\n\nSelect the user you want to remove from the Black list";
+
+        sPrompt+= "\n\nhttp://lgfsite.wordpress.com\n";
+
+        integer iStop= llGetListLength(gBlackList); 
+        integer i = 0;
+        
+        for (i=0; i<iStop; i=i+2) {
+            lMenuItems += [llList2String(gWhiteList, i+1)];
+        } 
+            
+        // Allow the user to remove from the blacklist
+        gkDialogIDBLRemove = Dialog(kAv, sPrompt, lMenuItems, [UPMENU],0, iAuth);
+        
     }
+    
+    
     return TRUE;
 }
 
@@ -537,7 +736,7 @@ default {
         gPlotsName=[];
         gLastPlotScan = 0;
         gReport = "";
-        gLastReportDate = llGetUnixTime() - K_DELAY_BETWEEN_TO_REPORT -1;
+        gLastReportDate = llGetUnixTime();
         gWhiteList = [];
         gBlackList =[];
         
@@ -588,7 +787,11 @@ default {
                         gDebug = 0;
                     } else {
                         gDebug = 1;
-                    }
+                    } 
+                } else if (sToken == "Whitelist") {
+                    gWhiteList = llParseString2List(sValue, [","], []);
+                } else if (sToken == "Blacklist") { 
+                    gBlackList = llParseString2List(sValue, [","], []);
                 }
             }
             
@@ -599,6 +802,7 @@ default {
                 string sMessage = llList2String(lMenuParams, 1);
                 integer iPage = (integer)llList2String(lMenuParams, 2);
                 integer iAuth = (integer)llList2String(lMenuParams, 3);
+                debug("sMessage = " + sMessage);
                 if (sMessage == MENU_CHOICE_ACTIVATE) {
                     ActivateReport();
                     UserCommand(iAuth, "Menu Fanclub", kAv);
@@ -612,10 +816,103 @@ default {
                 } else if (sMessage == MENU_CHOICE_DEBUG_ON) {
                     gDebug = 1;
                     llMessageLinked(LINK_SET, LM_SETTING_SAVE, gsScript+"debug="+(string)gDebug, "");
-                    UserCommand(iAuth, "Menu Fanclubƒ", kAv); 
+                    UserCommand(iAuth, "Menu Fanclub", kAv); 
+                } else if (sMessage == MENU_CHOICE_WHITELIST) {
+                    UserCommand(iAuth, MAIN_MENU_WHITELIST, kAv);
+                } else if (sMessage == MENU_CHOICE_BLACKLIST) { 
+                    UserCommand(iAuth, MAIN_MENU_BLACKLIST, kAv);
                 } else if (sMessage == UPMENU) {
                     llMessageLinked(LINK_SET, iAuth, "menu " + gsParentMenu, kAv);
                 } 
+            } else if (kID == gkDialogIDWLMain) {
+                list lMenuParams = llParseString2List(sStr, ["|"], []);
+                key kAv = (key)llList2String(lMenuParams, 0);
+                string sMessage = llList2String(lMenuParams, 1);
+                integer iPage = (integer)llList2String(lMenuParams, 2);
+                integer iAuth = (integer)llList2String(lMenuParams, 3);
+
+                if (sMessage == MENU_CHOICE_WL_LIST) {
+                    displayContentList (kAv, gWhiteList, "White list");
+                    UserCommand(iAuth, MAIN_MENU_WHITELIST, kAv); 
+                } else if (sMessage == MENU_CHOICE_WL_ADD) {
+                    UserCommand(iAuth, MENU_CHOICE_WL_ADD, kAv);
+                } else if (sMessage == MENU_CHOICE_WL_REMOVE) {
+                    UserCommand(iAuth, MENU_CHOICE_WL_REMOVE, kAv);
+                } else if (sMessage == UPMENU) {
+                    UserCommand(iAuth, "menu fanclub", kAv);
+                }
+            } else if (kID == gkDialogIDBLMain) {
+                list lMenuParams = llParseString2List(sStr, ["|"], []);
+                key kAv = (key)llList2String(lMenuParams, 0);
+                string sMessage = llList2String(lMenuParams, 1);
+                integer iPage = (integer)llList2String(lMenuParams, 2);
+                integer iAuth = (integer)llList2String(lMenuParams, 3);
+
+                 if (sMessage == MENU_CHOICE_BL_LIST) {
+                    displayContentList (kAv, gBlackList, "Black list");
+                    UserCommand(iAuth, MAIN_MENU_BLACKLIST, kAv); 
+                } else if (sMessage == MENU_CHOICE_BL_ADD) {
+                    UserCommand(iAuth, MENU_CHOICE_BL_ADD, kAv);
+                } else if (sMessage == MENU_CHOICE_BL_REMOVE) {
+                    UserCommand(iAuth, MENU_CHOICE_BL_REMOVE, kAv);
+                } else if (sMessage == UPMENU) {
+                    UserCommand(iAuth, "menu fanclub", kAv);
+                }
+            } else if (kID == gkDialogIDWLRemove) {
+                list lMenuParams = llParseString2List(sStr, ["|"], []);
+                key kAv = (key)llList2String(lMenuParams, 0);
+                string sMessage = llList2String(lMenuParams, 1);
+                integer iPage = (integer)llList2String(lMenuParams, 2);
+                integer iAuth = (integer)llList2String(lMenuParams, 3);
+
+                
+                if (sMessage == UPMENU) {
+                    UserCommand(iAuth, MAIN_MENU_WHITELIST, kAv);
+                } else {
+                    string aviName = sMessage;
+                    integer index = llListFindList(gWhiteList, [aviName]);
+                    if (index >0){
+                        gWhiteList = llDeleteSubList( gWhiteList, index-1, index );
+                        notify(kAv, aviName + " deleted from the White list", FALSE);
+                    }
+                    UserCommand(iAuth, MAIN_MENU_WHITELIST, kAv);
+                }
+            } else if (kID == gkDialogIDBLRemove) {
+                list lMenuParams = llParseString2List(sStr, ["|"], []);
+                key kAv = (key)llList2String(lMenuParams, 0);
+                string sMessage = llList2String(lMenuParams, 1);
+                integer iPage = (integer)llList2String(lMenuParams, 2);
+                integer iAuth = (integer)llList2String(lMenuParams, 3);
+
+                if (sMessage == UPMENU) {
+                    UserCommand(iAuth, MAIN_MENU_BLACKLIST, kAv);
+                } else {
+                    string aviName = sMessage;
+                    integer index = llListFindList(gBlackList, [aviName]);
+                    if (index >0){
+                        gWhiteList = llDeleteSubList( gBlackList, index-1, index );
+                        notify(kAv, aviName + " deleted from the Black list", FALSE);
+                    }
+                    UserCommand(iAuth, MAIN_MENU_WHITELIST, kAv);
+                }
+            } else if (kID == g_kTBoxIdAddWL) {
+                list lMenuParams = llParseString2List(sStr, ["|"], []);
+                key kAv = (key)llList2String(lMenuParams, 0);
+                string sMessage = llList2String(lMenuParams, 1);
+                integer iPage = (integer)llList2String(lMenuParams, 2);
+                integer iAuth = (integer)llList2String(lMenuParams, 3);
+                
+                addAviSpecialList(kAv, sMessage,TRUE);
+                UserCommand(iAuth, MAIN_MENU_WHITELIST, kAv);                    
+            } else if (kID == g_kTBoxIdAddBL) {
+                list lMenuParams = llParseString2List(sStr, ["|"], []);
+                key kAv = (key)llList2String(lMenuParams, 0);
+                string sMessage = llList2String(lMenuParams, 1);
+                integer iPage = (integer)llList2String(lMenuParams, 2);
+                integer iAuth = (integer)llList2String(lMenuParams, 3);
+                
+                addAviSpecialList(kAv, sMessage,FALSE);
+                UserCommand(iAuth, MAIN_MENU_BLACKLIST, kAv);                    
             }
         }
     }
@@ -664,12 +961,33 @@ default {
     no_sensor() {
         // Even if we did not detect a plot, maybe we must
         // send the report
+        gLastPlotScan = llGetUnixTime();
+        gTempPlots=[];
+        managePlots();  
         
         //now we have to check if we must send a report
         senReportIfNecessary();
     
         // clean scan cycle
         cleanScanCycle();
+    }
+    
+    dataserver(key queryid, string data)
+    {
+        if ( gOwnerNameMgtWhite == queryid ){
+            // we add the user in the white list
+            gWhiteList +=[gOwnerNameMgtWhiteAviKey] + [data];
+            gOwnerNameMgtWhite= NULL_KEY;
+            llMessageLinked(LINK_SET, LM_SETTING_SAVE, gsScript+"Whitelist="+llDumpList2String(gWhiteList, "," ), "");
+            notify(gkAvWhite, data + " added to the White list", FALSE);
+            
+        } else if ( gOwnerNameMgtBlack == queryid ) {
+            // we add the user in the black list
+            gBlackList +=[gOwnerNameMgtBlackAviKey] + [data];
+            gOwnerNameMgtBlack= NULL_KEY;
+            llMessageLinked(LINK_SET, LM_SETTING_SAVE, gsScript+"Blacklist="+llDumpList2String(gBlackList, "," ), "");
+            notify(gkAvBlack, data + " added to the Black list", FALSE);
+        }
     }
     
 
