@@ -5,8 +5,8 @@
 //
 //  Signature                         : LGF/APPS/COLLAR/FANCLUB
 //  LGF Version protocol              : 1.0.0.0
-//  Component version                 : 0.12
-//  release date                      : February 2016
+//  Component version                 : 0.14
+//  release date                      : March 2016
 //
 //  Description : This component is an OC Apps. It allows the owner to receive a report
 //                    of people who stand near the sub/slave
@@ -29,7 +29,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-string gVersion = "0.12"; // version of the component
+string gVersion = "0.14"; // version of the component
 string gsParentMenu = "Apps"; // Root menu fot this apps
 string gsFeatureName = "Fanclub"; // Name of the menu of this apps
 string gsScript= "fanclub_";     // used for parameters save
@@ -265,12 +265,12 @@ displayPlots() {
     integer index=-1;
     integer size = llGetListLength(gPlots);
     debug ("start of displayPlots");
-    for (i=0; i<size; i=i+3) {
-        key  lAv     = llList2Key(gPlots, i);
-        integer startDate = llList2Integer(gPlots, i+1);
-        integer endDate = llList2Integer(gPlots, i+2);
-        
-        debug ((string)lAv + ":" + llKey2Name(lAv) + ":" + TimeString(Unix2DateTime(startDate)) +  " to " +  TimeString(Unix2DateTime(endDate)));
+    for (i=0; i<size; i=i+4) {
+        key  lAv     		= llList2Key(gPlots, i);
+        integer startDate 	= llList2Integer(gPlots, i+1);
+        integer endDate 	= llList2Integer(gPlots, i+2);
+        string loc 			= llList2Integer(gPlots, i+3);
+        debug ((string)lAv + ":" + llKey2Name(lAv) + ":" + TimeString(Unix2DateTime(startDate)) +  " to " +  TimeString(Unix2DateTime(endDate)) + " at " + loc) ;
         
     }
     debug ("end of displayPlots");
@@ -287,17 +287,15 @@ emit() {
 
 ReportAPresenceIfNecessary(key agent, list dates) {
     // we continue the delay of presence
-    integer startDate = llList2Integer(dates, 0);
-    integer endDate = llList2Integer(dates, 1);
+    integer startDate 	= llList2Integer(dates, 0);
+    integer endDate 	= llList2Integer(dates, 1);
+    string location 	= llList2String(dates, 2);
     
     if (endDate - startDate >= K_DELAY_TO_REPORT_A_PRESENCE) {
         // report the presence
         
         integer indexPlotName = llListFindList(gPlotsName, [agent]);
         string agentName = llList2String(gPlotsName, indexPlotName+1);
-
-
-        string location = getLocation();
         
         string reportLine = DateString(Unix2DateTime(startDate))  + " " + TimeString(Unix2DateTime(startDate)) + " to " 
                             + DateString(Unix2DateTime(endDate))+ " " + TimeString(Unix2DateTime(endDate)) ;
@@ -316,7 +314,7 @@ reportAndCleanPlots() {
     integer size = llGetListLength(gPlots);
     list listToDelete = [];
     
-    for (i=0; i<size; i=i+3) {
+    for (i=0; i<size; i=i+4) {
         key lAv = llList2Key(gPlots, i);
         index = llListFindList(gTempPlots,[lAv]);
         if (index < 0) {
@@ -330,8 +328,8 @@ reportAndCleanPlots() {
     for (i=0; i<size; i=i+1) {
         key lAv = llList2Key(listToDelete,i);
         integer indexPlot = llListFindList(gPlots,[lAv]);
-        ReportAPresenceIfNecessary(lAv, llList2List(gPlots, indexPlot+1, indexPlot+2));
-        gPlots = llDeleteSubList(gPlots, indexPlot, indexPlot+2);
+        ReportAPresenceIfNecessary(lAv, llList2List(gPlots, indexPlot+1, indexPlot+3));
+        gPlots = llDeleteSubList(gPlots, indexPlot, indexPlot+3);
         
         integer indexPlotName = llListFindList(gPlotsName, [lAv]);
         gPlotsName = llDeleteSubList(gPlotsName, indexPlotName, indexPlotName+1);
@@ -353,6 +351,10 @@ storeScan() {
         key lAv = llList2Key(gTempPlots, i);
         indexWhiteList = llListFindList(gWhiteList, [lAv]);
         
+        debug ("Whitelist = " + (string)gWhiteList);
+        debug ("lAv = " + (string)lAv);
+        
+        
         if (indexWhiteList < 0) {
             // Avi is not in the whitelist. So we track it
             index = llListFindList(gPlots, [lAv]);
@@ -363,6 +365,7 @@ storeScan() {
                 gPlots += lAv;
                 gPlots += [gLastPlotScan];
                 gPlots += [gLastPlotScan];
+                gPlots += [getLocation()];
                 
                 // We add the avi name;
                 gPlotsName +=[lAv];
@@ -379,6 +382,8 @@ storeScan() {
                 //debug ("----- end of updating avi "+ llKey2Name(lAv) +  " : " + (string) lAv);
                                 
             }
+        } else {
+            debug ("***** " + llKey2Name(lAv) + "skipped because avi is in whitelist");
         }
     }
     
@@ -400,7 +405,6 @@ handleBlacklist() {
         if (indexBlackList >= 0) {
             // Avi is in the blacklist. So we send an im to owners
             //send the message to all owners : im 
-            //TODO : deal with gPlots. If starttime == endtime then send an im
             integer index= llListFindList (gPlots, [lAvPlot]);
             
             //here index shoud be >= 0
@@ -471,17 +475,30 @@ managePlots() {
 
 
 // Get the location of avatar
+//string getLocation() {
+//    string lLocation;
+//    vector vPos=llGetPos();
+//    string sRegionName=llGetRegionName();
+//    list details = llGetParcelDetails(llGetPos(), [PARCEL_DETAILS_NAME]);
+//    string sParcelName = llList2String(details ,0);
+//    lLocation += " at "  + sParcelName + " http://maps.secondlife.com/secondlife/"+llEscapeURL(sRegionName)+"/"+(string)llFloor(vPos.x)+"/"+(string)llFloor (vPos.y)+"/"+(string)llFloor(vPos.z);
+
+//    return lLocation;
+
+//}
+
 string getLocation() {
     string lLocation;
     vector vPos=llGetPos();
     string sRegionName=llGetRegionName();
     list details = llGetParcelDetails(llGetPos(), [PARCEL_DETAILS_NAME]);
     string sParcelName = llList2String(details ,0);
-    lLocation += " at "  + sParcelName + " http://maps.secondlife.com/secondlife/"+llEscapeURL(sRegionName)+"/"+(string)llFloor(vPos.x)+"/"+(string)llFloor (vPos.y)+"/"+(string)llFloor(vPos.z);
+    lLocation += " at "  + sParcelName + " - "+ sRegionName;
 
     return lLocation;
 
 }
+
 
 // Send the report once it is generated
 sendReport() {
@@ -526,7 +543,6 @@ ActivateReport() {
     gActive = 1;
     llMessageLinked(LINK_SET, LM_SETTING_SAVE, gsScript+"active="+(string)gActive, "");
     llSetTimerEvent(K_TIMER_DELAY);
-    sendReport();
 }
 
 // tis function deactivate the fanclub app
@@ -623,10 +639,10 @@ integer UserCommand(integer iAuth, string sStr, key kAv){
             sPrompt += "\nDebug Mode : Activated";  
         }
 
-        //if (iAuth == COMMAND_OWNER) {
+        if (iAuth == COMMAND_OWNER) {
             lMenuItems += [MENU_CHOICE_WHITELIST];  
             lMenuItems += [MENU_CHOICE_BLACKLIST];  
-        //}
+        }
         
         
         sPrompt+= "\n\nhttp://lgfsite.wordpress.com";
@@ -641,9 +657,9 @@ integer UserCommand(integer iAuth, string sStr, key kAv){
                   "\n\nThe White list allow you to specify a user that will never appear in the report." +
                   "\nPlease choose an option to manage the White list" ;   
         
-        //if (iAuth == COMMAND_OWNER) {
+        if (iAuth == COMMAND_OWNER) {
                 lMenuItems += [MENU_CHOICE_WL_LIST] + [MENU_CHOICE_WL_ADD] + [MENU_CHOICE_WL_REMOVE];  
-        //}
+        }
         
         sPrompt+= "\n\nhttp://lgfsite.wordpress.com";
         gkDialogIDWLMain = Dialog(kAv, sPrompt, lMenuItems, [UPMENU],0, iAuth);
@@ -655,9 +671,9 @@ integer UserCommand(integer iAuth, string sStr, key kAv){
                   "\n\nThe Black list allow the owner to be notified when a specific person is detected near the wearer." +
                   "\nPlease choose an option to manage the  Black list" ;   
 
-       // if (iAuth == COMMAND_OWNER) {
+        if (iAuth == COMMAND_OWNER) {
                 lMenuItems += [MENU_CHOICE_BL_LIST] + [MENU_CHOICE_BL_ADD] + [MENU_CHOICE_BL_REMOVE];  
-        //}
+        }
         
         sPrompt+= "\n\nhttp://lgfsite.wordpress.com\n";
         gkDialogIDBLMain = Dialog(kAv, sPrompt, lMenuItems, [UPMENU],0, iAuth);
@@ -789,9 +805,29 @@ default {
                         gDebug = 1;
                     } 
                 } else if (sToken == "Whitelist") {
-                    gWhiteList = llParseString2List(sValue, [","], []);
+                    
+                    list temp = llParseString2List(sValue, [","], [","]);
+                    integer i = 0;
+                    integer maxSize = llGetListLength(temp);
+                    gWhiteList= [];
+                    for (i=0; i<maxSize; i=i+2 ) {
+                        key lKey = llList2Key(temp, i);
+                        string lName =  llList2String(temp, i+1);
+                        gWhiteList += [lKey];
+                        gWhiteList += [lName];
+                    }
+                    
                 } else if (sToken == "Blacklist") { 
-                    gBlackList = llParseString2List(sValue, [","], []);
+                    list temp = llParseString2List(sValue, [","], [","]);
+                    integer i = 0;
+                    integer maxSize = llGetListLength(temp);
+                    gBlackList= [];
+                    for (i=0; i<maxSize; i=i+2 ) {
+                        key lKey = llList2Key(temp, i);
+                        string lName =  llList2String(temp, i+1);
+                        gBlackList += [lKey];
+                        gBlackList += [lName];
+                    }
                 }
             }
             
@@ -873,6 +909,7 @@ default {
                     integer index = llListFindList(gWhiteList, [aviName]);
                     if (index >0){
                         gWhiteList = llDeleteSubList( gWhiteList, index-1, index );
+                        llMessageLinked(LINK_SET, LM_SETTING_SAVE, gsScript+"Whitelist="+llDumpList2String(gWhiteList, "," ), "");
                         notify(kAv, aviName + " deleted from the White list", FALSE);
                     }
                     UserCommand(iAuth, MAIN_MENU_WHITELIST, kAv);
@@ -890,7 +927,8 @@ default {
                     string aviName = sMessage;
                     integer index = llListFindList(gBlackList, [aviName]);
                     if (index >0){
-                        gWhiteList = llDeleteSubList( gBlackList, index-1, index );
+                        gBlackList = llDeleteSubList( gBlackList, index-1, index );
+                        llMessageLinked(LINK_SET, LM_SETTING_SAVE, gsScript+"Blacklist="+llDumpList2String(gBlackList, "," ), "");
                         notify(kAv, aviName + " deleted from the Black list", FALSE);
                     }
                     UserCommand(iAuth, MAIN_MENU_WHITELIST, kAv);
@@ -921,7 +959,7 @@ default {
     // immediately send a report
     attach(key kID) {
         if (kID) {
-            sendReport();
+            //sendReport();
         }
         
     }
