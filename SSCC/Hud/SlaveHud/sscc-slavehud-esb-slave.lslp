@@ -48,12 +48,13 @@ integer INDEX_REQ_INTERF           = 6;         // index in LGF message containi
 integer INDEX_REQ_INTERF_SEARCH    = 7; 
 integer INDEX_REQ_ANSWER_ACK       = 7;         // index in LGF message containing the searched interface by the sender 
 
-string  ACTION_BLIIP               = "BLIIP";     // LGF Bliip message body
-string  ACTION_REGISTER         = "REGISTER";   // LGF Message body for LGF REGISTER
-string  ACTION_REGISTER_ACK     = "REGISTER_ANSWER";    // LGF Message body for LGF REGISTER ACKNOWLEDGE
-string  ACTION_ASK_DATA         = "ASK_DATA";    // LGF Message body : Ask for data
-string  ACTION_ASK_DATA_ANSWER     = "ASK_DATA_ANSWER";    // LGF Message body : Ask for data
-string  ACK_SUCCESS                = "SUCCESS";
+string  ACTION_BLIIP               	= "BLIIP";     // LGF Bliip message body
+string  ACTION_REGISTER         	= "REGISTER";   // LGF Message body for LGF REGISTER
+string  ACTION_REGISTER_ACK     	= "REGISTER_ANSWER";    // LGF Message body for LGF REGISTER ACKNOWLEDGE
+string  ACTION_ASK_DATA         	= "ASK_DATA";    // LGF Message body : Ask for data
+string  ACTION_ASK_DATA_ANSWER     	= "ASK_DATA_ANSWER";    // LGF Message body : Ask for data
+string  ACTION_CHECK_STATUS			= "CHECK_STATUS";	// Heartbeat Management
+string  ACK_SUCCESS                	= "SUCCESS";
 string  ACK                         = "ACK";
 string  ACK_ALREADY_CONNECTED       = "ALREADY_CONNECTED";
 
@@ -62,15 +63,20 @@ string  INTERFACE_SLAVE_HUD       = "SSCC-SLAVE-HUD";
 string  INTERFACE_PLUGIN_SLAVE  = "SSCC-SLAVE-SUB";
 
 // Internal message sent to SSCC scripts
-integer I_MSG_SLAVE_CONNECTED            = 10000;
+// 10000 - 10049 : From Logic to GUI
+integer I_MSG_SLAVE_CONNECTED           = 10000;
 integer I_MSG_SLAVE_DISCONNECTED        = 10001;
+
+// 10050 - 10099 : From GUI to Logic
+integer I_MSG_SLAVE_CHECK_STATUS       	= 10050;
 
 
 
 integer K_DELAY_POOLING_SLAVE = 30; // 30 sec before pooling a slave deice
 
 key      gSlavePrimKey           = NULL_KEY;        // Key of Slave prim 
-    
+integer  gSlaveStatus			 = FALSE;
+
 // log function
 debug (string pLog) {
     if (gDebug == 1) {
@@ -153,8 +159,13 @@ integer handshakeHandler (list paramsMsg, string pAction, string pSuccess, key p
                         
     } 
     
-    return lReturn;
-                    
+    return lReturn;                   
+}
+
+checkStatus() {
+	llRegionSayTo (gSlavePrimKey, CHANNEL_LGF_SLAVE, HEADER_SLAVEHUD + ACTION_CHECK_STATUS );
+	gSlaveStatus = FALSE;
+	llSetTimerEvent(K_DELAY_CHECK_STATUS);
 }
 
 default {
@@ -225,6 +236,16 @@ state connected {
     state_exit() {
         
     }
+    
+    timer() {
+    	// Timer : used for heartbeat management.
+    	if (gSlaveStatus == FALSE) {
+    		llMessageLinked (LINK_THIS, I_MSG_SLAVE_DISCONNECTED, "", NULL_KEY);
+    	} else {
+    		llMessageLinked (LINK_THIS, I_MSG_SLAVE_CONNECTED, "", NULL_KEY);
+    	}
+    	llSetTimerEvent(0);
+    }
         
     on_rez (integer startParam) {
         llResetScript();
@@ -258,5 +279,16 @@ state connected {
                 }
             }
         } 
-    }   
+    } 
+    
+    link_message(integer sender_num, integer num, string msg, key id) {
+    	
+    	if ((num >= 10050) && (num < 10100)) {
+    		
+	    	if (num == I_MSG_SLAVE_CHECK_STATUS) {
+	    		checkStatus();
+	    		return;
+	    	}
+    	}
+      
 }

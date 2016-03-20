@@ -33,8 +33,16 @@
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
+// GUI messages
+// Range 0-100 : Slave
+integer GUI_MSG_SLAVE_HEARTBEAT 		= 1;
+
+// 10000 - 10049 : From Logic to GUI
 integer I_MSG_SLAVE_CONNECTED			= 10000;
 integer I_MSG_SLAVE_DISCONNECTED		= 10001;
+
+// 10049 - 10099 : From GUI to Logic
+integer I_MSG_SLAVE_CHECK_STATUS       	= 10050;
 
 connectSlave (key id) {
 	
@@ -45,6 +53,10 @@ disconnectSlave(key id) {
 	llSetColor(<1.0, 0.0, 0.0>, ALL_SIDES);
 }
 
+sendHeartbeat() {
+	llMessageLinked (LINK_THIS,I_MSG_SLAVE_CHECK_STATUS , lMessage, NULL_KEY);
+}
+
 default {
     state_entry() {
         
@@ -52,14 +64,36 @@ default {
     
     link_message(integer sender_num, integer num, string msg, key id) {
     	
-    	if (num == I_MSG_SLAVE_CONNECTED) {
-    		connectSlave(id);
-    		return;
-    	}
-    	
-    	if (num == I_MSG_SLAVE_DISCONNECTED) {
-    		disconnectSlave(id);
-    		return;
+    	if (msg != "") {
+    		//////////////////////////////////////
+    		// Message from GUI                 //
+    		//////////////////////////////////////
+			list lParamsMsg 		= llParseString2List(message, ["|"], []);
+			integer lGuiMsgNumber	= llList2Integer(lParamsMsg,0);
+			//integer lGuiMsgFace 	= llList2Integer(lParamsMsg,1);
+			
+			if ((lGuiMsgNumber>0) && (lGuiMsgNumber>100)) {
+				
+				if (lGuiMsgNumber == GUI_MSG_SLAVE_HEARTBEAT) {
+					sendHeartbeat();
+					return 
+				}
+			}			
+    	} else {
+    		//////////////////////////////////////
+    		// Message from Business Logic      //
+    		//////////////////////////////////////
+    		
+    		
+	    	if (num == I_MSG_SLAVE_CONNECTED) {
+	    		connectSlave(id);
+	    		return;
+	    	}
+	    	
+	    	if (num == I_MSG_SLAVE_DISCONNECTED) {
+	    		disconnectSlave(id);
+	    		return;
+	    	}
     	}
     	
     }
