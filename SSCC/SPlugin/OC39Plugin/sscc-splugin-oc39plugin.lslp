@@ -55,7 +55,7 @@ integer INDEX_REQ_INTERF           	= 7;         // index in LGF message contain
 integer INDEX_MASTER_UID           	= 7;         // index in LGF message containing the Master prim UUID
 string  ACTION_REGISTER         	= "REGISTER";   // LGF Message body for LGF REGISTER
 string  ACTION_REGISTER_ACK     	= "REGISTER_ANSWER";    // LGF Message body for LGF REGISTER ACKNOWLEDGE
-string  ACTION_HEARTBEAT			= "ACTION_HEARTBEAT";	// Heartbeat Management
+string  ACTION_HEARTBEAT			= "HEARTBEAT";	// Heartbeat Management
 
 //OC 3.9 messages
 integer LM_SETTING_RESPONSE = 2002;
