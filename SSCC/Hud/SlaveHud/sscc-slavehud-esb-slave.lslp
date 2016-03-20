@@ -53,7 +53,7 @@ string  ACTION_REGISTER         	= "REGISTER";   // LGF Message body for LGF REG
 string  ACTION_REGISTER_ACK     	= "REGISTER_ANSWER";    // LGF Message body for LGF REGISTER ACKNOWLEDGE
 string  ACTION_ASK_DATA         	= "ASK_DATA";    // LGF Message body : Ask for data
 string  ACTION_ASK_DATA_ANSWER     	= "ASK_DATA_ANSWER";    // LGF Message body : Ask for data
-string  ACTION_CHECK_STATUS			= "CHECK_STATUS";	// Heartbeat Management
+string  ACTION_HEARTBEAT			= "HEARTBEAT";	// Heartbeat Management
 string  ACK_SUCCESS                	= "SUCCESS";
 string  ACK                         = "ACK";
 string  ACK_ALREADY_CONNECTED       = "ALREADY_CONNECTED";
@@ -163,7 +163,7 @@ integer handshakeHandler (list paramsMsg, string pAction, string pSuccess, key p
 }
 
 checkStatus() {
-	llRegionSayTo (gSlavePrimKey, CHANNEL_LGF_SLAVE, HEADER_SLAVEHUD + ACTION_CHECK_STATUS );
+	llRegionSayTo (gSlavePrimKey, CHANNEL_LGF_SLAVE, HEADER_SLAVEHUD + ACTION_HEARTBEAT );
 	gSlaveStatus = FALSE;
 	llSetTimerEvent(K_DELAY_CHECK_STATUS);
 }
@@ -276,6 +276,11 @@ state connected {
                 
                 if (action == ACTION_ASK_DATA_ANSWER){
                     
+                }
+                
+                if (action == ACTION_HEARTBEAT) {
+                	gSlaveStatus = TRUE;
+                	return;
                 }
             }
         } 
