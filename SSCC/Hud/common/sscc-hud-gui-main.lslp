@@ -1,26 +1,18 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //
-//  Lady Green Forensic Component : SSCC SLAVE HUD 
+//  Lady Green Forensic Component : SSCC COMMON HUD 
 //
-//  Signature : LGF/SSCC/HUD/SLAVEHUD
+//  Signature : used in LGF/SSCC/HUD/SLAVEHUD LGF/SSCC/HUD/MASTERHUD
 //  LGF Version protocol : 1.1.0.0
 //  Component version : 0.1
 //  release date : March 2016
 //
-//  Description : This component is a slave hud. It allows and interaction with a
-//					master hud and all worn devices by the sub/slave
+//  Description : This script is a slave hud is used in a slave or a master gud. 
+//					It manages the interaction with all the prim (linked or not)
 //
 //  State description : 
 //      
-//                      
-//
-//  LGF interfaces implemented by this script (Please refer to LGF interfaces directory):
-//			- SSCC-SLAVE-HUD
-//
-//  Messages sent by SLAVEHUD except those required by implemented interfaces (Please refer to LGF msg directory)
-//
-//  Messages handled by SLAVEHUD except those required by implemented interfaces (Please refer to LGF msg directory)
 //
 //  documentation : http://lgfsite.wordpress.com
 //
@@ -33,7 +25,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-integer gDebug = 0;
+integer gDebug = 1;
 
 
 
