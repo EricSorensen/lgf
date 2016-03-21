@@ -48,13 +48,13 @@ integer INDEX_REQ_INTERF           = 6;         // index in LGF message containi
 integer INDEX_REQ_INTERF_SEARCH    = 7; 
 integer INDEX_REQ_ANSWER_ACK       = 7;         // index in LGF message containing the searched interface by the sender 
 
-string  ACTION_BLIIP               	= "BLIIP";     // LGF Bliip message body
-string  ACTION_REGISTER         	= "REGISTER";   // LGF Message body for LGF REGISTER
-string  ACTION_REGISTER_ACK     	= "REGISTER_ANSWER";    // LGF Message body for LGF REGISTER ACKNOWLEDGE
-string  ACTION_ASK_DATA         	= "ASK_DATA";    // LGF Message body : Ask for data
-string  ACTION_ASK_DATA_ANSWER     	= "ASK_DATA_ANSWER";    // LGF Message body : Ask for data
-string  ACTION_HEARTBEAT			= "HEARTBEAT";	// Heartbeat Management
-string  ACK_SUCCESS                	= "SUCCESS";
+string  ACTION_BLIIP                   = "BLIIP";     // LGF Bliip message body
+string  ACTION_REGISTER             = "REGISTER";   // LGF Message body for LGF REGISTER
+string  ACTION_REGISTER_ACK         = "REGISTER_ANSWER";    // LGF Message body for LGF REGISTER ACKNOWLEDGE
+string  ACTION_ASK_DATA             = "ASK_DATA";    // LGF Message body : Ask for data
+string  ACTION_ASK_DATA_ANSWER         = "ASK_DATA_ANSWER";    // LGF Message body : Ask for data
+string  ACTION_HEARTBEAT            = "HEARTBEAT";    // Heartbeat Management
+string  ACK_SUCCESS                    = "SUCCESS";
 string  ACK                         = "ACK";
 string  ACK_ALREADY_CONNECTED       = "ALREADY_CONNECTED";
 
@@ -68,14 +68,24 @@ integer I_MSG_SLAVE_CONNECTED           = 10000;
 integer I_MSG_SLAVE_DISCONNECTED        = 10001;
 
 // 10050 - 10099 : From GUI to Logic
-integer I_MSG_SLAVE_CHECK_STATUS       	= 10050;
+integer I_MSG_SLAVE_CHECK_STATUS           = 10050;
+integer K_DELAY_CHECK_STATUS               = 15; 
+
+// 9000 - 9600 : timer events
+// 9000 - 9199 : From Logic to scheduler
+integer I_MSG_TIMER_CONNECT_SLAVE		   		= 9000;	
+integer I_MSG_TIMER_HEARTBEAT_SLAVE	   			= 9001;	
+
+// 9200 - 9299 : From scheduler to logic
+integer K_OFFSET_TIMER_ELAPSED 	= 200;
+
+// 9400 - 9599 : From Logic to scheduler : lift timer
+integer K_OFFSET_TIMER_LIFT 	= 400;
 
 
-
-integer K_DELAY_POOLING_SLAVE = 30; // 30 sec before pooling a slave deice
+integer K_DELAY_POOLING_SLAVE = 30; // 30 sec before pooling a slave device
 
 key      gSlavePrimKey           = NULL_KEY;        // Key of Slave prim 
-integer  gSlaveStatus			 = FALSE;
 
 // log function
 debug (string pLog) {
@@ -84,8 +94,18 @@ debug (string pLog) {
     }
 }
 
+setTimer (integer pEvent, integer pDelay) {
+    integer lTime = llGetUnixTime() + pDelay;
+    llMessageLinked (LINK_THIS, pEvent, (string) lTime, NULL_KEY);
+}
+
+releaseTimer(integer pEvent) {
+    llMessageLinked (LINK_THIS, pEvent+K_OFFSET_TIMER_LIFT, "", NULL_KEY);
+}
+
 init_default () {
 
+    debug ("enter the default state");
     gSlavePrimKey           = NULL_KEY;     
     
     // send a message to all components that the slave component is connected
@@ -94,30 +114,34 @@ init_default () {
     // Prim listen the Slave channel for the owned/worn devices
     gHandleMaster = llListen(CHANNEL_LGF_MASTER, "","","");
     
-    llSetTimerEvent(K_DELAY_POOLING_SLAVE);
-            
+    // send a message to set a timer to connect to slave device
+    setTimer(I_MSG_TIMER_CONNECT_SLAVE, K_DELAY_POOLING_SLAVE);
+             
 }
 
 exit_default() {
     
-    llSetTimerEvent(0);
+    releaseTimer(I_MSG_TIMER_CONNECT_SLAVE);
     llListenRemove (gHandleMaster);
 }
 
 init_connected() {
     
+    debug ("enter the connected state");
+    
     gHandleMaster = llListen(CHANNEL_LGF_MASTER, "", gSlavePrimKey, ""); 
     
     // send a message to all components that the slave component is connected
     llMessageLinked (LINK_THIS, I_MSG_SLAVE_CONNECTED, "", gSlavePrimKey);
-    
-    // set the timer to pool the devices to connected
-    //llSetTimerEvent(K_POOLING_DEVICES_DELAY);
+}
 
+sendStatusOK() {
+    releaseTimer(I_MSG_TIMER_HEARTBEAT_SLAVE);
 }
 
 exit_connected() {
-    llListenRemove (gHandleMaster);    
+    llListenRemove (gHandleMaster);   
+    releaseTimer(I_MSG_TIMER_HEARTBEAT_SLAVE);
 }
 
 
@@ -163,9 +187,9 @@ integer handshakeHandler (list paramsMsg, string pAction, string pSuccess, key p
 }
 
 checkStatus() {
-	llRegionSayTo (gSlavePrimKey, CHANNEL_LGF_SLAVE, HEADER_SLAVEHUD + ACTION_HEARTBEAT );
-	gSlaveStatus = FALSE;
-	llSetTimerEvent(K_DELAY_CHECK_STATUS);
+    llRegionSayTo (gSlavePrimKey, CHANNEL_LGF_SLAVE, HEADER_SLAVEHUD + ACTION_HEARTBEAT );
+    setTimer(I_MSG_TIMER_HEARTBEAT_SLAVE, K_DELAY_CHECK_STATUS);
+    debug ("heartbeat message sent");
 }
 
 default {
@@ -176,11 +200,6 @@ default {
    state_exit() {
          exit_default();  
     }
-    
-    timer() {
-         llRegionSay (CHANNEL_LGF_SLAVE, HEADER_SLAVEHUD + ACTION_REGISTER + "|" + INTERFACE_SLAVE_HUD + "|" + INTERFACE_PLUGIN_SLAVE );
-    }
-
     
     on_rez (integer startParam) {
         llResetScript();
@@ -193,6 +212,28 @@ default {
             llResetScript();
         }
     }    
+    
+    link_message(integer sender_num, integer num, string msg, key id) {
+
+        if ((num >= 9200) && (num < 9399)) {
+        	// Events elapsed sent by scheduler
+            debug ("Message received from Scheduler : " + (string)num);
+            
+            integer lEventReleased = num - K_OFFSET_TIMER_ELAPSED;
+           
+            if (lEventReleased == I_MSG_TIMER_CONNECT_SLAVE) {
+            	// we send a broadcast message to all slave devices
+                llRegionSay (CHANNEL_LGF_SLAVE, HEADER_SLAVEHUD + ACTION_REGISTER + "|" + INTERFACE_SLAVE_HUD + "|" + INTERFACE_PLUGIN_SLAVE );
+
+			    // send a message to set a timer to connect to slave device
+			    setTimer(I_MSG_TIMER_CONNECT_SLAVE, K_DELAY_POOLING_SLAVE);
+                
+                return;
+            }
+        }
+    }
+    
+    
     
     listen(integer channel, string name, key id, string message) {
        
@@ -234,18 +275,8 @@ state connected {
     }
     
     state_exit() {
-        
-    }
-    
-    timer() {
-    	// Timer : used for heartbeat management.
-    	if (gSlaveStatus == FALSE) {
-    		llMessageLinked (LINK_THIS, I_MSG_SLAVE_DISCONNECTED, "", NULL_KEY);
-    	} else {
-    		llMessageLinked (LINK_THIS, I_MSG_SLAVE_CONNECTED, "", NULL_KEY);
-    	}
-    	llSetTimerEvent(0);
-    }
+       	exit_connected(); 
+    }    
         
     on_rez (integer startParam) {
         llResetScript();
@@ -279,21 +310,32 @@ state connected {
                 }
                 
                 if (action == ACTION_HEARTBEAT) {
-                	gSlaveStatus = TRUE;
-                	return;
+                    sendStatusOK();
+                    return;
                 }
             }
         } 
     } 
     
     link_message(integer sender_num, integer num, string msg, key id) {
-    	
-    	if ((num >= 10050) && (num < 10100)) {
-    		
-	    	if (num == I_MSG_SLAVE_CHECK_STATUS) {
-	    		checkStatus();
-	    		return;
-	    	}
-    	}
+        debug ("Message received from GUI : " + (string)num);
+        if ((num >= 10050) && (num < 10100)) {
+            debug ("Message received from GUI : " + (string)num);
+            if (num == I_MSG_SLAVE_CHECK_STATUS) {
+                checkStatus();
+                return;
+            }
+        } else if ((num >= 9200) && (num < 9399)) {
+        	// Events elapsed sent by scheduler
+            debug ("Message received from Scheduler : " + (string)num);
+            
+            integer lEventReleased = num - K_OFFSET_TIMER_ELAPSED;
+           
+            if (lEventReleased == I_MSG_TIMER_HEARTBEAT_SLAVE) {
+            	state default;
+            }
+        	
+        }
+    }
       
 }
