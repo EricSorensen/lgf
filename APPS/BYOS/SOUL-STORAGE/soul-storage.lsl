@@ -46,6 +46,7 @@ integer K_CANAL_STORAGE = 2;
 
 string K_MSG_INIT       = "INIT";
 string K_MSG_INIT_ACK   = "INIT_ACK";
+string K_ACK_ALREADY_INITIALIZED = "ALREADY_INIT";
 string K_MSG_STORE  = "STORE";
 string K_MSG_STORE_ACK  = "STORE_ACK";
 string K_MSG_DELIVER= "DELIVER";
@@ -63,6 +64,7 @@ string K_BAD_FORMAT = "INVALID_SOUL";
 ////////////////////////////////////
 // variables
 ////////////////////////////////////
+integer debugMode = 1;
 list souls = [];
 integer capacity = 0;
 
@@ -81,6 +83,7 @@ debug (string pLog) {
 ////////////////////////////////////
 string initialize(string value) {
   capacity = (integer)value;
+  debug ("Storage initialized with a capacity of : " + (string) capacity);
   return K_ACK_OK;
 }
 
@@ -88,24 +91,32 @@ string initialize(string value) {
 // store a soul
 ////////////////////////////////////
 string store(key value) {
-  string returnCode = K_ACK_OK
-  if (llGetListLength(souls) >= capacity) {
-    returnCode = K_CAPACITY_FULL;
-  } else {
-    integer indexSeparator = llSubStringIndex(value,"|");
-
-    if (indexSeparator == -1) {
+  string returnCode = K_ACK_OK;
+  if (llGetListLength(souls) < capacity) {
+    debug ("traitement requête de stockage en cours");
+    list paramTicket = llParseString2List(value, ["|"], []);
+    if (llGetListLength(paramTicket)<3) {
+      debug ("pas assez d'argument dans la key à stocker");
       returnCode = K_BAD_FORMAT;
     } else {
-      string keyOnly = llGetSubString(value, indexSeparator+1, llStringLength(value));
-      debug ("Key recherchée dans le storage:" + keyOnly);
-      integer index = llListFindList(souls, keyOnly);
+      string registerTicket = llList2String(paramTicket,0);
+      string soulKey = llList2String(paramTicket,1);
+
+      debug ("soulKey recherchée dans le storage:" + soulKey);
+      string soulsList = llList2CSV(souls);
+      integer index = llSubStringIndex(soulsList, soulKey);
       if (index == -1) {
-        souls += value;
+        debug ("soul non trouvée dans le storage.");
+        string valueToStore = registerTicket + "|" + soulKey;
+        souls += valueToStore;
       } else {
+        debug ("soul trouvée dans le storage.");
         returnCode = K_ALREADY_REGISTERED;
       }
     }
+  } else {
+    debug ("storage plein");
+    returnCode = K_CAPACITY_FULL;
   }
 
   return returnCode;
@@ -115,7 +126,7 @@ string store(key value) {
 // deliver a soul
 ////////////////////////////////////
 string deliver() {
-  string returnCode = K_ACK_NOK
+  string returnCode = K_ACK_NOK;
   if (llGetListLength(souls) != 0) {
     returnCode = llList2String(souls,0);
     souls = llDeleteSubList(souls,0,0);
@@ -131,7 +142,7 @@ string deliver() {
 ////////////////////////////////////
 default{
   state_entry() {
-
+    debug ("Soul storage is waiting for initialization msg");
   }
 
   // Processing requests from parent script
@@ -140,14 +151,14 @@ default{
       // Message is for the storage Component
       if (message == K_MSG_INIT) {
         // this is a request to initialize the storage
-        debug("Receive a request to initialize the store:" + (string)id)
+        debug("Receive a request to initialize the store:" + (string)id);
         if (initialize((string)id) == K_ACK_OK) {
           // init successful
-          llMessageLink(sender, K_CANAL_MASTER, K_MSG_INIT_ACK, (key)K_ACK_OK);
+          llMessageLinked(sender, K_CANAL_MASTER, K_MSG_INIT_ACK, (key)K_ACK_OK);
           state running;
         } else {
           // do not acknowledge this initialization
-          llMessageLink(sender, K_CANAL_MASTER, K_MSG_INIT_ACK, (key)K_ACK_NOK);
+          llMessageLinked(sender, K_CANAL_MASTER, K_MSG_INIT_ACK, (key)K_ACK_NOK);
         }
       }
     }
@@ -155,7 +166,7 @@ default{
   }
 }
 
-running {
+state running {
   state_entry() {
 
   }
@@ -167,14 +178,16 @@ running {
       // Message is for the storage Component
       if (message == K_MSG_STORE) {
         // this is a request to store a soul
-        debug("Receive a request to store this soul:" + (string)id)
+        debug("Receive a request to store this soul:" + (string)id);
         string returnCode = store(id);
         if (returnCode == K_ACK_OK) {
           // acknowlege the request
-          llMessageLink(sender, K_CANAL_MASTER, K_MSG_STORE_ACK, (key)K_ACK_OK);
+          string msgAck = K_ACK_OK + "|" + (string)id;
+          llMessageLinked(sender, K_CANAL_MASTER, K_MSG_STORE_ACK, (key)msgAck);
         } else {
           // do not acknowlege the request
-          llMessageLink(sender, K_CANAL_MASTER, K_MSG_STORE_ACK, (key)returnCode);
+          string msgAck = returnCode + "|" + (string)id;
+          llMessageLinked(sender, K_CANAL_MASTER, K_MSG_STORE_ACK, (key)msgAck);
         }
       } else if (message == K_MSG_DELIVER) {
         // this is a request to deliver a soul
@@ -182,11 +195,14 @@ running {
         string returnCode = deliver();
         if (returnCode != K_ACK_NOK) {
           // acknowlege the request and give the key
-          llMessageLink(sender, K_CANAL_MASTER, K_MSG_DELIVER_ACK, returnCode);
+          llMessageLinked(sender, K_CANAL_MASTER, K_MSG_DELIVER_ACK, returnCode);
         } else {
           // do not acknowlege the request
-          llMessageLink(sender, K_CANAL_MASTER, K_MSG_STORE_ACK, (key)|K_ACK_NOK + "|" + returnCode);
+          llMessageLinked(sender, K_CANAL_MASTER, K_MSG_STORE_ACK, (key)("|"+ K_ACK_NOK + "|" + returnCode));
         }
+      } else if (message == K_MSG_INIT) {
+        string msgAck = K_ACK_ALREADY_INITIALIZED + "|" + (string)capacity;
+        llMessageLinked(sender, K_CANAL_MASTER, K_MSG_INIT_ACK, (key)msgAck);
       }
     }
   }
